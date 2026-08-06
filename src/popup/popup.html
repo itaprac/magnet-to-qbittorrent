@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Magnet → qBittorrent</title>
+    <link rel="stylesheet" href="../tokens.css" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="top">
+        <div class="brand">
+          <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+            <rect class="mark-bg" width="24" height="24" rx="6" />
+            <path class="mark-bolt" d="M14 3 L7 13 h4.5 l-1.5 8 L17 11 h-4.5 L14 3 z" />
+          </svg>
+          <div class="brand-text">
+            <h1>Magnet → qBittorrent</h1>
+            <p class="status">
+              <span class="status-dot" data-state="loading" aria-hidden="true"></span>
+              <span id="statusText">Connecting…</span>
+            </p>
+          </div>
+        </div>
+        <button id="options" class="quiet" type="button">Settings</button>
+      </header>
+
+      <section class="quick-add" aria-labelledby="addHeading">
+        <div class="section-title-row">
+          <h2 id="addHeading">Quick add</h2>
+          <span class="key-hint">Enter to send</span>
+        </div>
+        <form id="addForm" class="command-row">
+          <input
+            id="pasteInput"
+            type="text"
+            inputmode="url"
+            spellcheck="false"
+            autocomplete="off"
+            placeholder="Paste a magnet link"
+            aria-describedby="addStatus"
+          />
+          <button id="addButton" class="primary" type="submit">Add</button>
+        </form>
+        <p id="addStatus" class="add-status" aria-live="polite"></p>
+      </section>
+
+      <section class="queue" aria-labelledby="queueHeading">
+        <div class="section-head">
+          <div class="section-heading">
+            <h2 id="queueHeading">Queue</h2>
+            <span id="queueSummary" class="queue-summary">Checking…</span>
+          </div>
+          <button id="refresh" class="quiet" type="button">Refresh</button>
+        </div>
+        <ul id="torrentList" class="torrent-list" aria-live="polite" aria-busy="true"></ul>
+      </section>
+
+      <footer class="actions">
+        <div id="shortcutBar" class="shortcut-bar" aria-label="Shortcuts" hidden></div>
+        <button id="openQbit" class="secondary" type="button">Open qBittorrent Web UI</button>
+      </footer>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

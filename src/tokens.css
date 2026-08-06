@@ -1,0 +1,57 @@
+/* tokens.css — single source of truth for the extension's visual system.
+   Imported by the popup and options pages; injected into pages by the
+   content script for the in-page picker. Keep this file small. */
+
+:root {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bg: oklch(13% 0.014 252);
+  --surface: oklch(17% 0.016 252);
+  --field: oklch(20% 0.018 252);
+  --field-strong: oklch(24% 0.020 252);
+
+  /* Lines */
+  --line: oklch(30% 0.022 252);
+  --line-strong: oklch(42% 0.030 252);
+
+  /* Text */
+  --text: oklch(95% 0.012 78);
+  --muted: oklch(70% 0.018 80);
+  --dim: oklch(55% 0.014 80);
+
+  /* Accent: warm amber, reserved for primary action + live state */
+  --accent: oklch(78% 0.16 72);
+  --accent-strong: oklch(85% 0.18 72);
+  --accent-ink: oklch(18% 0.04 75);
+  --accent-soft: oklch(78% 0.16 72 / .14);
+  --accent-softer: oklch(78% 0.16 72 / .07);
+
+  /* State */
+  --success: oklch(78% 0.14 152);
+  --danger: oklch(70% 0.18 28);
+  --warn: oklch(80% 0.14 88);
+
+  /* Type */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+
+  /* Motion */
+  --ease-out: cubic-bezier(.22, 1, .36, 1);
+  --t-fast: 100ms;
+  --t-base: 160ms;
+
+  /* Radius */
+  --r-tag: 6px;
+  --r-pill: 8px;
+  --r-field: 10px;
+  --r-card: 14px;
+  --r-bar: 999px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-fast: 0ms;
+    --t-base: 0ms;
+  }
+}

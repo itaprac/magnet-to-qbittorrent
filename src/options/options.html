@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Magnet → qBittorrent, settings</title>
+    <link rel="stylesheet" href="../tokens.css" />
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="brand-row">
+        <div class="brand">
+          <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+            <rect class="mark-bg" width="24" height="24" rx="6" />
+            <path class="mark-bolt" d="M14 3 L7 13 h4.5 l-1.5 8 L17 11 h-4.5 L14 3 z" />
+          </svg>
+          <div>
+            <h1>Magnet → qBittorrent</h1>
+            <p class="status">
+              <span class="status-dot" data-state="loading" aria-hidden="true"></span>
+              <span id="connectionStatusText">Checking…</span>
+            </p>
+          </div>
+        </div>
+        <button id="openQbit" type="button" class="secondary" disabled>Open Web UI</button>
+      </header>
+
+      <form id="settingsForm">
+        <section class="section" aria-labelledby="connectionHeading">
+          <div class="section-intro">
+            <h2 id="connectionHeading">Connection</h2>
+            <p>Where the extension sends magnet links.</p>
+          </div>
+
+          <div class="fields">
+            <label class="field">
+              <span class="field-label">Web UI URL</span>
+              <input id="baseUrl" name="baseUrl" type="url" placeholder="http://localhost:8080" autocomplete="url" required />
+              <small class="field-hint">Local, LAN, VPN, or a remote HTTPS address.</small>
+            </label>
+
+            <div class="field-row">
+              <label class="field">
+                <span class="field-label">Username</span>
+                <input id="username" name="username" type="text" autocomplete="username" required />
+              </label>
+              <label class="field">
+                <span class="field-label">Password</span>
+                <input id="password" name="password" type="password" autocomplete="current-password" required />
+              </label>
+            </div>
+
+            <div class="inline-action">
+              <button id="test" type="button" class="secondary">Test connection</button>
+              <p id="testStatus" class="inline-status" data-state="idle" aria-live="polite"></p>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" aria-labelledby="defaultsHeading">
+          <div class="section-intro">
+            <h2 id="defaultsHeading">Torrent defaults</h2>
+            <p>Applied unless you choose something else in the picker.</p>
+          </div>
+
+          <div class="fields">
+            <div class="field-row category-row">
+              <label class="field">
+                <span class="field-label">Default category</span>
+                <select id="defaultCategory" name="defaultCategory">
+                  <option value="">No category</option>
+                </select>
+              </label>
+              <button id="loadCategories" type="button" class="secondary align-bottom">Load categories</button>
+            </div>
+
+            <label class="field">
+              <span class="field-label">Tags</span>
+              <input id="tags" name="tags" type="text" placeholder="browser" />
+              <small class="field-hint">Comma-separated. Added to every torrent.</small>
+            </label>
+
+            <label class="toggle-row">
+              <span class="toggle-copy">
+                <span class="toggle-title">Add paused</span>
+                <span class="toggle-hint">Queue the torrent without starting it.</span>
+              </span>
+              <input id="addPaused" name="addPaused" type="checkbox" />
+            </label>
+          </div>
+        </section>
+
+        <section class="section" aria-labelledby="shortcutsHeading">
+          <div class="section-intro">
+            <h2 id="shortcutsHeading">Shortcuts</h2>
+            <p>
+              Buttons in the popup that jump to another app in one click — Plex, Jellyfin, a NAS file browser, a dashboard,
+              anything on http:// or https://. The first one also opens when you click a "download complete" notification.
+            </p>
+          </div>
+
+          <div class="fields">
+            <div class="shortcut-head" aria-hidden="true">
+              <span>Show</span>
+              <span>Name</span>
+              <span>Address</span>
+            </div>
+            <ul id="shortcutList" class="shortcut-list"></ul>
+            <p id="shortcutEmpty" class="section-note" hidden>No shortcuts yet.</p>
+            <div class="inline-action">
+              <button id="addShortcut" type="button" class="secondary">Add shortcut</button>
+              <small class="field-hint">Up to 6. Leave the name empty to use the host name.</small>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" aria-labelledby="behaviorHeading">
+          <div class="section-intro">
+            <h2 id="behaviorHeading">Behavior</h2>
+            <p>Keep the hot path short and choose which events interrupt you.</p>
+          </div>
+
+          <div class="toggle-list">
+            <label class="toggle-row">
+              <span class="toggle-copy">
+                <span class="toggle-title">Choose category on click</span>
+                <span class="toggle-hint">Show the compact picker before adding a magnet.</span>
+              </span>
+              <input id="askCategoryOnAdd" name="askCategoryOnAdd" type="checkbox" />
+            </label>
+
+            <label class="toggle-row">
+              <span class="toggle-copy">
+                <span class="toggle-title">Error notifications</span>
+                <span class="toggle-hint">Report failed requests. Successful adds are confirmed in the page, not by the system.</span>
+              </span>
+              <input id="showNotifications" name="showNotifications" type="checkbox" />
+            </label>
+
+            <label class="toggle-row">
+              <span class="toggle-copy">
+                <span class="toggle-title">Download complete notifications</span>
+                <span class="toggle-hint">Check once a minute and notify when a download finishes.</span>
+              </span>
+              <input id="notifyOnComplete" name="notifyOnComplete" type="checkbox" />
+            </label>
+          </div>
+        </section>
+
+        <div class="form-actions">
+          <button id="save" type="submit" class="primary">Save settings</button>
+          <p id="saveStatus" class="save-status" aria-live="polite"></p>
+        </div>
+      </form>
+
+      <section class="section preview" aria-labelledby="previewHeading">
+        <div class="section-head">
+          <div>
+            <h2 id="previewHeading">Recent torrents</h2>
+            <p id="previewSummary" class="section-note">From this Web UI.</p>
+          </div>
+          <button id="refreshTorrents" type="button" class="quiet">Refresh</button>
+        </div>
+        <ul id="torrentPreview" class="torrent-list" aria-live="polite"></ul>
+      </section>
+
+      <details class="troubleshooting">
+        <summary>Connection troubleshooting</summary>
+        <ul>
+          <li>Confirm that the Web UI opens in this browser.</li>
+          <li>For 401 or 403, check credentials, CSRF protection, and Host header validation.</li>
+          <li>The password stays in this browser profile. Treat the extension as a personal tool.</li>
+        </ul>
+      </details>
+    </main>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>
