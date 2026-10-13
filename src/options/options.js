@@ -1,5 +1,5 @@
 import { MAX_SHORTCUTS, getSettings, saveSettings, shortcutLink } from "../shared.js";
-import { apiVersion, getCategories, getTorrents } from "../qbittorrent-api.js";
+import { connectedBaseUrl, apiVersion, getCategories, getTorrents } from "../qbittorrent-api.js";
 
 const form = document.querySelector("#settingsForm");
 const saveButton = document.querySelector("#save");
@@ -59,6 +59,7 @@ function setSaveStatus(text = "", kind = "") {
 function formToSettings() {
   return {
     baseUrl: form.baseUrl.value,
+    fallbackUrl: form.fallbackUrl.value,
     username: form.username.value,
     password: form.password.value,
     defaultCategory: form.defaultCategory.value,
@@ -131,6 +132,7 @@ function fillShortcuts(shortcuts) {
 
 function fillForm(settings) {
   form.baseUrl.value = settings.baseUrl ?? "";
+  form.fallbackUrl.value = settings.fallbackUrl ?? "";
   form.username.value = settings.username ?? "";
   form.password.value = settings.password ?? "";
   form.tags.value = settings.tags ?? "";
@@ -268,7 +270,7 @@ async function checkConnection(knownSettings = null) {
 
   try {
     const version = await apiVersion(settings);
-    const url = new URL(settings.baseUrl);
+    const url = new URL(connectedBaseUrl(settings));
     setConnectionStatus(`Connected · ${url.host} · v${version}`, "ok");
   } catch (error) {
     setConnectionStatus("Can't reach qBittorrent", "err", error.message);
@@ -327,7 +329,7 @@ testButton.addEventListener("click", async () => {
   try {
     const settings = formToSettings();
     const version = await apiVersion(settings);
-    const url = new URL(settings.baseUrl);
+    const url = new URL(connectedBaseUrl(settings));
     setInlineStatus(`Connected · v${version}`, "ok");
     setConnectionStatus(`Connected · ${url.host} · v${version}`, "ok");
   } catch (error) {
@@ -356,7 +358,7 @@ loadCategoriesButton.addEventListener("click", async () => {
 
 openQbitButton.addEventListener("click", async () => {
   const settings = await getSettings();
-  if (settings.baseUrl) await tabs?.create({ url: settings.baseUrl });
+  if (settings.baseUrl) await tabs?.create({ url: connectedBaseUrl(settings) });
 });
 
 refreshTorrentsButton.addEventListener("click", loadTorrentPreview);

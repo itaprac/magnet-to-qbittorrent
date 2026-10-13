@@ -8,17 +8,74 @@ function formBody(fields) {
   return params;
 }
 
+class ConnectionError extends Error {}
+
+let lastConnection = null;
+
+export function connectedBaseUrl(settings) {
+  return lastConnection?.baseUrl === normalizeBaseUrl(settings.baseUrl)
+    && lastConnection?.fallbackUrl === normalizeBaseUrl(settings.fallbackUrl)
+    ? lastConnection.url
+    : normalizeBaseUrl(settings.baseUrl);
+}
+
+async function firstAvailable(settings, operation) {
+  validateSettings(settings);
+  const baseUrl = normalizeBaseUrl(settings.baseUrl);
+  const fallbackUrl = normalizeBaseUrl(settings.fallbackUrl);
+  const urls = [...new Set([baseUrl, fallbackUrl].filter(Boolean))];
+  const controllers = urls.map(() => new AbortController());
+  try {
+    // Only the winning operation can update the displayed address.
+    const winner = await Promise.any(urls.map(async (url, index) => {
+      const endpoint = { ...settings, baseUrl: url, fallbackUrl: "", signal: controllers[index].signal };
+      return { url, result: await operation(endpoint) };
+    }));
+    lastConnection = { baseUrl, fallbackUrl, url: winner.url };
+    return winner;
+  } catch (error) {
+    const errors = error.errors ?? [error];
+    if (urls.length === 1) throw errors[0];
+    throw new Error(`Neither address worked. Main URL: ${errors[0].message} Fallback URL: ${errors[1].message}`);
+  } finally {
+    controllers.forEach((controller) => controller.abort());
+  }
+}
+
 async function request(settings, path, init = {}) {
   const baseUrl = normalizeBaseUrl(settings.baseUrl);
-  const response = await fetch(`${baseUrl}${path}`, {
-    ...init,
-    credentials: "include",
-    headers: {
-      ...(init.body instanceof FormData ? {} : { "Content-Type": "application/x-www-form-urlencoded" }),
-      ...(init.headers ?? {})
-    }
-  });
-  return response;
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  settings.signal?.addEventListener("abort", abort, { once: true });
+  if (settings.signal?.aborted) controller.abort();
+  const timeout = setTimeout(abort, 5000);
+  try {
+    const response = await fetch(`${baseUrl}${path}`, {
+      ...init,
+      credentials: "include",
+      signal: controller.signal,
+      headers: {
+        ...(init.body instanceof FormData ? {} : { "Content-Type": "application/x-www-form-urlencoded" }),
+        ...(init.headers ?? {})
+      }
+    });
+    // Keep the timeout and cancellation active until the body has arrived.
+    const text = await response.text();
+    return {
+      ok: response.ok,
+      status: response.status,
+      statusText: response.statusText,
+      text: async () => text,
+      json: async () => JSON.parse(text)
+    };
+  } catch (error) {
+    throw new ConnectionError(controller.signal.aborted
+      ? "Request cancelled or timed out after 5 seconds."
+      : "Network connection failed. Check the URL and network.", { cause: error });
+  } finally {
+    clearTimeout(timeout);
+    settings.signal?.removeEventListener("abort", abort);
+  }
 }
 
 export function parseAddResponse(text) {
@@ -45,7 +102,7 @@ export function isSuccessfulAddResponse(text) {
   return parseAddResponse(text).ok;
 }
 
-export async function login(settings) {
+async function loginAtUrl(settings) {
   validateSettings(settings);
   const response = await request(settings, "/api/v2/auth/login", {
     method: "POST",
@@ -59,20 +116,20 @@ export async function login(settings) {
   }
 }
 
-export async function apiVersion(settings) {
+async function apiVersionAtUrl(settings) {
   let response = await request(settings, "/api/v2/app/webapiVersion", { method: "GET", headers: {} });
   if (response.status === 403) {
-    await login(settings);
+    await loginAtUrl(settings);
     response = await request(settings, "/api/v2/app/webapiVersion", { method: "GET", headers: {} });
   }
   if (!response.ok) throw new Error(`Can't reach qBittorrent (${response.status}).`);
   return (await response.text()).trim();
 }
 
-export async function getCategories(settings) {
+async function getCategoriesAtUrl(settings) {
   let response = await request(settings, "/api/v2/torrents/categories", { method: "GET", headers: {} });
   if (response.status === 403) {
-    await login(settings);
+    await loginAtUrl(settings);
     response = await request(settings, "/api/v2/torrents/categories", { method: "GET", headers: {} });
   }
   if (!response.ok) throw new Error(`Can't load categories (${response.status}).`);
@@ -80,7 +137,7 @@ export async function getCategories(settings) {
   return Object.keys(data).sort((a, b) => a.localeCompare(b));
 }
 
-export async function getTorrents(settings, { limit = 8 } = {}) {
+async function getTorrentsAtUrl(settings, { limit = 8 } = {}) {
   validateSettings(settings);
   const params = new URLSearchParams({
     filter: "all",
@@ -91,14 +148,14 @@ export async function getTorrents(settings, { limit = 8 } = {}) {
 
   let response = await request(settings, `/api/v2/torrents/info?${params}`, { method: "GET", headers: {} });
   if (response.status === 403) {
-    await login(settings);
+    await loginAtUrl(settings);
     response = await request(settings, `/api/v2/torrents/info?${params}`, { method: "GET", headers: {} });
   }
   if (!response.ok) throw new Error(`Can't load torrents (${response.status}).`);
   return response.json();
 }
 
-export async function addMagnet(settings, magnetUrl, categoryOverride = undefined) {
+async function addMagnetAtUrl(settings, magnetUrl, categoryOverride = undefined) {
   validateSettings(settings);
   if (!String(magnetUrl).startsWith("magnet:")) throw new Error("Not a magnet link.");
 
@@ -118,7 +175,7 @@ export async function addMagnet(settings, magnetUrl, categoryOverride = undefine
   });
 
   if (response.status === 403) {
-    await login(settings);
+    await loginAtUrl(settings);
     response = await request(settings, "/api/v2/torrents/add", {
       method: "POST",
       body: makeBody()
@@ -132,4 +189,25 @@ export async function addMagnet(settings, magnetUrl, categoryOverride = undefine
   }
 
   return result;
+}
+
+export const login = async (settings) => (await firstAvailable(settings, loginAtUrl)).result;
+export const apiVersion = async (settings) => (await firstAvailable(settings, apiVersionAtUrl)).result;
+export const getCategories = async (settings) => (await firstAvailable(settings, getCategoriesAtUrl)).result;
+export const getTorrents = async (settings, options) =>
+  (await firstAvailable(settings, (endpoint) => getTorrentsAtUrl(endpoint, options))).result;
+
+export async function addMagnet(settings, magnetUrl, categoryOverride) {
+  validateSettings(settings);
+  if (!String(magnetUrl).startsWith("magnet:")) throw new Error("Not a magnet link.");
+  // Race a read before sending the write to exactly one address.
+  const { url } = await firstAvailable(settings, apiVersionAtUrl);
+  try {
+    return await addMagnetAtUrl({ ...settings, baseUrl: url, fallbackUrl: "" }, magnetUrl, categoryOverride);
+  } catch (error) {
+    if (error instanceof ConnectionError) {
+      throw new Error("Connection lost while adding. Check the torrent list before retrying; the torrent may already be added.", { cause: error });
+    }
+    throw error;
+  }
 }

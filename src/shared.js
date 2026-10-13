@@ -1,5 +1,6 @@
 export const DEFAULT_SETTINGS = {
   baseUrl: "",
+  fallbackUrl: "",
   username: "",
   password: "",
   defaultCategory: "",
@@ -40,6 +41,8 @@ export async function saveSettings(settings) {
   const merged = { ...current, ...settings };
   const clean = { ...merged };
   clean.baseUrl = normalizeBaseUrl(clean.baseUrl);
+  clean.fallbackUrl = normalizeBaseUrl(clean.fallbackUrl);
+  validateFallbackUrl(clean.fallbackUrl);
   clean.username = String(clean.username ?? "").trim();
   clean.password = String(clean.password ?? "");
   clean.defaultCategory = String(clean.defaultCategory ?? "");
@@ -87,6 +90,16 @@ export function normalizeBaseUrl(value) {
   return String(value ?? "").trim().replace(/\/+$/, "");
 }
 
+function validateFallbackUrl(value) {
+  if (!normalizeBaseUrl(value)) return;
+  try {
+    const url = new URL(value);
+    if (!["http:", "https:"].includes(url.protocol)) throw new Error();
+  } catch {
+    throw new Error("Fallback URL must be a valid http:// or https:// address.");
+  }
+}
+
 export function validateSettings(settings) {
   if (!settings.baseUrl) throw new Error("qBittorrent Web UI URL is missing.");
   let parsed;
@@ -98,6 +111,7 @@ export function validateSettings(settings) {
   if (!["http:", "https:"].includes(parsed.protocol)) {
     throw new Error("URL must start with http:// or https://.");
   }
+  validateFallbackUrl(settings.fallbackUrl);
   if (!settings.username) throw new Error("Username is required.");
   if (!settings.password) throw new Error("Password is required.");
 }

@@ -24,10 +24,13 @@ Then `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on…** �
 In the options page:
 
 1. Web UI URL (e.g. `http://localhost:8080`, `http://192.168.1.20:8080`, or a remote `https://…`).
-2. Username and password.
-3. **Test connection**.
-4. **Load categories**, pick a default.
-5. Save.
+2. Optional **Fallback URL**, such as `http://192.168.1.20:8080`, for the same server when DNS fails.
+3. Username and password.
+4. **Test connection**.
+5. **Load categories**, pick a default.
+6. Save.
+
+Both addresses are checked in parallel. The first successful response selects the address, and the slower request is cancelled. Each request has a 5-second timeout, including its response body. Before adding a torrent, the extension checks the API on both addresses and sends the add only to the winner. A lost add response is not retried automatically because the torrent may already be added. Connection status and **Open Web UI** use the last successful address. An HTTPS fallback must have a certificate valid for its address.
 
 Download completion checks run once a minute. Error and completion notifications are controlled separately in **Behavior**.
 

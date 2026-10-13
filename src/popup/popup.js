@@ -1,5 +1,5 @@
 import { getSettings, shortcutLinks } from "../shared.js";
-import { getTorrents } from "../qbittorrent-api.js";
+import { connectedBaseUrl, getTorrents } from "../qbittorrent-api.js";
 
 const runtime = globalThis.browser?.runtime ?? globalThis.chrome.runtime;
 const tabs = globalThis.browser?.tabs ?? globalThis.chrome?.tabs;
@@ -201,14 +201,14 @@ async function performLoad({ quiet = false } = {}) {
   }
 
   try {
-    const url = new URL(settings.baseUrl);
-    setConnectionStatus(`Connected · ${url.host}`, "ok");
     openQbit.disabled = false;
     pasteInput.disabled = false;
     addButton.disabled = false;
     torrentList.setAttribute("aria-busy", "true");
     if (!quiet && !torrentList.children.length) renderEmpty("Loading queue…");
     const torrents = await getTorrents(settings, { limit: 8 });
+    const url = new URL(connectedBaseUrl(settings));
+    setConnectionStatus(`Connected · ${url.host}`, "ok");
     renderTorrents(torrents);
   } catch (error) {
     setConnectionStatus("Can't reach qBittorrent", "err");
@@ -263,7 +263,7 @@ pasteInput.addEventListener("input", () => {
 });
 
 openQbit.addEventListener("click", async () => {
-  if (cachedSettings?.baseUrl) await tabs?.create({ url: cachedSettings.baseUrl });
+  if (cachedSettings?.baseUrl) await tabs?.create({ url: connectedBaseUrl(cachedSettings) });
 });
 refresh.addEventListener("click", () => loadPopup());
 optionsBtn.addEventListener("click", () => runtime.openOptionsPage());

@@ -21,6 +21,7 @@ test("saving form settings preserves recent categories", async () => {
   const { saveSettings } = await import("../src/shared.js?storage-test");
   const saved = await saveSettings({
     baseUrl: "http://localhost:8080/",
+    fallbackUrl: "  http://192.168.1.20:8080/  ",
     username: "admin",
     password: "secret",
     defaultCategory: "linux",
@@ -38,6 +39,7 @@ test("saving form settings preserves recent categories", async () => {
   assert.deepEqual(saved.recentCategories, ["linux", "movies"]);
   assert.deepEqual(storage.recentCategories, ["linux", "movies"]);
   assert.equal(storage.baseUrl, "http://localhost:8080");
+  assert.equal(storage.fallbackUrl, "http://192.168.1.20:8080");
   assert.deepEqual(saved.shortcuts, [
     { enabled: true, label: "Plex", url: "http://nas.local:32400/web/index.html#!/" }
   ]);
