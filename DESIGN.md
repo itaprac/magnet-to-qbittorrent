@@ -69,7 +69,7 @@ Line height: 1.45 body, 1.2 headings, 1.0 mini. Body line length capped at 70ch.
 
 ## Layout
 
-**Popup (360px wide, max 540px tall).** Single column. No nested cards. The order follows the hot path: connection state, quick add, queue, Web UI link. The quick-add command stays above the scrolling queue. Each torrent ends in a full-width 3px signal rail that carries progress and completion state.
+**Popup (360px wide, max 540px tall).** Single column. No nested cards. The order follows the hot path: connection state, quick add (magnet field, then category select and Add), queue, Web UI link. The quick-add command stays above the scrolling queue. Each torrent ends in a full-width 3px signal rail that carries progress and completion state.
 
 **Options page.** Single column, max-width 760px, centered. Sections separated by spacing and a section header. No card containers around the form. The hero is replaced by a thin brand row (mark + name + status) at the top of the page.
 
@@ -82,10 +82,11 @@ Line height: 1.45 body, 1.2 headings, 1.0 mini. Body line length capped at 70ch.
 - **Checkbox / toggle** — native input with `accent-color: var(--accent)`. No custom switch widgets.
 - **Select** — native. Same border / focus treatment as text inputs.
 - **Status pill** — 11px mono, 6px padding, 6px radius, uppercase, color + label, never color alone.
-- **Torrent row** — three lines: name and state, category / speed / percent, progress rail. Single column, no side-stripe accents. The 3px rail is the interface's signature element: amber while active, green only when complete.
+- **Torrent row** — three lines: name and state, percent / speed / time left / size (size and "complete" once done), progress rail. The whole row is a button that opens the Web UI; the category is in its tooltip. Single column, no side-stripe accents. The 3px rail is the interface's signature element: amber while active, green only when complete.
 - **Section header** — small label, no underline, no border. Followed by content with 12px gap.
 - **Empty state** — center-aligned single line of muted text. No illustration, no icon, no CTA unless there's a clear next step.
-- **Toast / confirmation** — fixed at top-right of the viewport for the content picker, auto-dismiss in 1.6s. No action button.
+- **Toast / confirmation** — fixed at top-right of the viewport for the content picker. Success auto-dismisses in 1.6s with no action button. Errors stay 6s, pause while hovered, and have a dismiss button.
+- **In-page surfaces** — the picker and toast render in a closed shadow root with their own copy of the tokens, so page styles and page custom properties never reach them.
 
 ## Motion
 

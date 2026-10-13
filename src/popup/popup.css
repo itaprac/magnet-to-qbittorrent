@@ -13,12 +13,13 @@ body {
 
 body {
   width: 360px;
-  height: 520px;
+  height: 540px;
   overflow: hidden;
 }
 
 button,
-input { font: inherit; }
+input,
+select { font: inherit; }
 
 button { -webkit-tap-highlight-color: transparent; }
 
@@ -205,11 +206,39 @@ h2 {
   font: 10px/1.2 var(--font-mono);
 }
 
+.add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .command-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
 }
+
+.command-row .primary { min-width: 72px; }
+
+#categorySelect {
+  min-width: 0;
+  min-height: 36px;
+  padding: 7px 30px 7px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-field);
+  outline: none;
+  appearance: none;
+  background: var(--field) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' width='12' height='8'><path fill='none' stroke='%23B5B0A8' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' d='M1.5 1.5 6 6 10.5 1.5'/></svg>") no-repeat right 11px center;
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+#categorySelect:hover { border-color: var(--line-strong); }
+#categorySelect:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+#categorySelect:disabled { cursor: not-allowed; opacity: .55; }
 
 #pasteInput {
   min-width: 0;
@@ -274,13 +303,27 @@ h2 {
   background: var(--line);
 }
 
+.torrent-list > li:not(.empty) { display: flex; }
+
 .torrent {
   display: flex;
+  width: 100%;
   min-width: 0;
   flex-direction: column;
   gap: 5px;
+  margin: 0;
   padding: 10px 10px 9px;
+  border: 0;
   background: var(--surface);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease-out);
+}
+.torrent:hover { background: var(--field); }
+.torrent:focus-visible {
+  outline: 3px solid var(--accent-soft);
+  outline-offset: -3px;
 }
 
 .torrent-top {
@@ -343,6 +386,7 @@ h2 {
 
 .empty {
   display: grid;
+  width: 100%;
   min-height: 120px;
   flex: 1 1 auto;
   place-items: center;

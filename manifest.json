@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Magnet to qBittorrent",
   "description": "Intercepts magnet links and sends them to your qBittorrent Web UI, with category, tags, and paused state.",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "permissions": [
     "storage",
     "notifications",
@@ -23,15 +23,15 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["src/content.js"],
-      "run_at": "document_start"
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": ["src/tokens.css", "icons/icon.svg"],
-      "matches": ["<all_urls>"]
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "src/content.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true,
+      "match_about_blank": true
     }
   ],
   "options_ui": {
@@ -50,6 +50,14 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "magnet-to-qbittorrent@local"
+    }
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+Shift+M"
+      },
+      "description": "Open the Magnet to qBittorrent popup"
     }
   }
 }

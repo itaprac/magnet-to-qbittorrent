@@ -10,6 +10,25 @@ function formBody(fields) {
 
 class ConnectionError extends Error {}
 
+const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+
+/** The v1 info hash of a magnet link as lowercase hex, or "" when it has none. */
+export function magnetInfoHash(magnetUrl) {
+  const match = /[?&]xt=urn:btih:([^&]+)/i.exec(String(magnetUrl));
+  if (!match) return "";
+  const value = decodeURIComponent(match[1]);
+  if (/^[0-9a-f]{40}$/i.test(value)) return value.toLowerCase();
+  if (!/^[A-Z2-7]{32}$/i.test(value)) return "";
+  let bits = "";
+  for (const char of value.toUpperCase()) bits += BASE32.indexOf(char).toString(2).padStart(5, "0");
+  return bits.match(/.{4}/g).map((nibble) => parseInt(nibble, 2).toString(16)).join("");
+}
+
+/** True for qBittorrent's plain "Fails." answer, which it sends for duplicates and bad links. */
+function isFailsResponse(text) {
+  return String(text).trim() === "Fails.";
+}
+
 let lastConnection = null;
 
 export function connectedBaseUrl(settings) {
@@ -111,6 +130,12 @@ async function loginAtUrl(settings) {
 
   const text = await response.text();
   const normalizedText = text.trim();
+  if (response.status === 403) {
+    throw new Error("qBittorrent banned this IP after too many failed logins. Wait for the ban to expire or restart qBittorrent.");
+  }
+  if (response.ok && isFailsResponse(normalizedText)) {
+    throw new Error("Wrong username or password.");
+  }
   if (!response.ok || !["Ok.", ""].includes(normalizedText)) {
     throw new Error(`Login failed (${response.status}): ${text || response.statusText}`);
   }
@@ -155,16 +180,32 @@ async function getTorrentsAtUrl(settings, { limit = 8 } = {}) {
   return response.json();
 }
 
-async function addMagnetAtUrl(settings, magnetUrl, categoryOverride = undefined) {
+async function existingTorrentAtUrl(settings, hash) {
+  if (!hash) return null;
+  const params = new URLSearchParams({ hashes: hash });
+  const response = await request(settings, `/api/v2/torrents/info?${params}`, { method: "GET", headers: {} });
+  if (!response.ok) return null;
+  try {
+    const list = await response.json();
+    return Array.isArray(list) && list.length ? list[0] : null;
+  } catch {
+    return null;
+  }
+}
+
+async function addTorrentAtUrl(settings, source, { category, paused } = {}) {
   validateSettings(settings);
-  if (!String(magnetUrl).startsWith("magnet:")) throw new Error("Not a magnet link.");
 
   const makeBody = () => {
     const body = new FormData();
-    body.set("urls", magnetUrl);
-    body.set("paused", settings.addPaused ? "true" : "false");
-    const category = categoryOverride === undefined ? settings.defaultCategory : categoryOverride;
-    if (category) body.set("category", category);
+    if (source.file) body.set("torrents", source.file, source.fileName || "download.torrent");
+    else body.set("urls", source.url);
+    // qBittorrent 5 renamed `paused` to `stopped`; older versions ignore the new name.
+    const addPaused = paused ?? settings.addPaused;
+    body.set("paused", addPaused ? "true" : "false");
+    body.set("stopped", addPaused ? "true" : "false");
+    const chosen = category === undefined ? settings.defaultCategory : category;
+    if (chosen) body.set("category", chosen);
     if (settings.tags) body.set("tags", settings.tags);
     return body;
   };
@@ -184,6 +225,12 @@ async function addMagnetAtUrl(settings, magnetUrl, categoryOverride = undefined)
 
   const text = await response.text();
   const result = parseAddResponse(text);
+  if (isFailsResponse(text) || response.status === 409) {
+    throw new Error(source.file || !source.url.startsWith("magnet:")
+      ? "qBittorrent rejected this torrent. It is already in the list or the file is not a valid torrent."
+      : "qBittorrent rejected this magnet. It is already in the list or the link is invalid.");
+  }
+  if (response.status === 415) throw new Error("This file is not a valid torrent.");
   if (!response.ok || !result.ok) {
     throw new Error(`Add failed (${response.status}): ${text || response.statusText}`);
   }
@@ -197,17 +244,39 @@ export const getCategories = async (settings) => (await firstAvailable(settings,
 export const getTorrents = async (settings, options) =>
   (await firstAvailable(settings, (endpoint) => getTorrentsAtUrl(endpoint, options))).result;
 
-export async function addMagnet(settings, magnetUrl, categoryOverride) {
+export class DuplicateTorrentError extends Error {}
+
+/**
+ * Sends a magnet link, a .torrent URL, or a downloaded .torrent file
+ * (`{ file, fileName }`) to exactly one address.
+ */
+export async function addTorrent(settings, source, overrides = {}) {
   validateSettings(settings);
-  if (!String(magnetUrl).startsWith("magnet:")) throw new Error("Not a magnet link.");
+  const target = typeof source === "string" ? { url: source } : source;
+  if (!target.file && !/^(magnet:|https?:)/.test(String(target.url))) {
+    throw new Error("Not a magnet or torrent link.");
+  }
   // Race a read before sending the write to exactly one address.
   const { url } = await firstAvailable(settings, apiVersionAtUrl);
+  const endpoint = { ...settings, baseUrl: url, fallbackUrl: "" };
   try {
-    return await addMagnetAtUrl({ ...settings, baseUrl: url, fallbackUrl: "" }, magnetUrl, categoryOverride);
+    const existing = target.url?.startsWith("magnet:")
+      ? await existingTorrentAtUrl(endpoint, magnetInfoHash(target.url))
+      : null;
+    if (existing) {
+      const where = existing.category ? ` in ${existing.category}` : "";
+      throw new DuplicateTorrentError(`Already in qBittorrent${where}.`);
+    }
+    return await addTorrentAtUrl(endpoint, target, overrides);
   } catch (error) {
     if (error instanceof ConnectionError) {
       throw new Error("Connection lost while adding. Check the torrent list before retrying; the torrent may already be added.", { cause: error });
     }
     throw error;
   }
+}
+
+export async function addMagnet(settings, magnetUrl, overrides = {}) {
+  if (!String(magnetUrl).startsWith("magnet:")) throw new Error("Not a magnet link.");
+  return addTorrent(settings, magnetUrl, overrides);
 }

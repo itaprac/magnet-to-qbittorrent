@@ -78,8 +78,9 @@
                   <option value="">No category</option>
                 </select>
               </label>
-              <button id="loadCategories" type="button" class="secondary align-bottom">Load categories</button>
+              <button id="loadCategories" type="button" class="secondary align-bottom">Reload</button>
             </div>
+            <small id="categoryHint" class="field-hint category-hint">Loaded from qBittorrent when the connection works.</small>
 
             <label class="field">
               <span class="field-label">Tags</span>
@@ -151,6 +152,14 @@
               </span>
               <input id="notifyOnComplete" name="notifyOnComplete" type="checkbox" />
             </label>
+
+            <label class="toggle-row">
+              <span class="toggle-copy">
+                <span class="toggle-title">Download count on the toolbar icon</span>
+                <span class="toggle-hint">Number of active downloads, or ! when qBittorrent can't be reached. Updated once a minute.</span>
+              </span>
+              <input id="showBadge" name="showBadge" type="checkbox" />
+            </label>
           </div>
         </section>
 
@@ -159,17 +168,6 @@
           <p id="saveStatus" class="save-status" aria-live="polite"></p>
         </div>
       </form>
-
-      <section class="section preview" aria-labelledby="previewHeading">
-        <div class="section-head">
-          <div>
-            <h2 id="previewHeading">Recent torrents</h2>
-            <p id="previewSummary" class="section-note">From this Web UI.</p>
-          </div>
-          <button id="refreshTorrents" type="button" class="quiet">Refresh</button>
-        </div>
-        <ul id="torrentPreview" class="torrent-list" aria-live="polite"></ul>
-      </section>
 
       <details class="troubleshooting">
         <summary>Connection troubleshooting</summary>

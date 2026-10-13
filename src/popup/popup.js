@@ -1,5 +1,6 @@
 import { getSettings, shortcutLinks } from "../shared.js";
-import { connectedBaseUrl, getTorrents } from "../qbittorrent-api.js";
+import { connectedBaseUrl, getCategories, getTorrents } from "../qbittorrent-api.js";
+import { formatRate, isActiveDownload, stateFor, torrentMeta } from "../torrent-format.js";
 
 const runtime = globalThis.browser?.runtime ?? globalThis.chrome.runtime;
 const tabs = globalThis.browser?.tabs ?? globalThis.chrome?.tabs;
@@ -15,32 +16,13 @@ const addForm = document.querySelector("#addForm");
 const addButton = document.querySelector("#addButton");
 const addStatus = document.querySelector("#addStatus");
 const pasteInput = document.querySelector("#pasteInput");
+const categorySelect = document.querySelector("#categorySelect");
 const optionsBtn = document.querySelector("#options");
-
-const UNITS = ["B/s", "KB/s", "MB/s", "GB/s"];
-const STATE_LABELS = {
-  downloading: { label: "downloading", kind: "downloading" },
-  stalledDL: { label: "waiting", kind: "downloading" },
-  metaDL: { label: "metadata", kind: "downloading" },
-  forcedDL: { label: "downloading", kind: "downloading" },
-  queuedDL: { label: "queued", kind: "downloading" },
-  checkingDL: { label: "checking", kind: "downloading" },
-  uploading: { label: "seeding", kind: "uploading" },
-  stalledUP: { label: "complete", kind: "uploading" },
-  forcedUP: { label: "seeding", kind: "uploading" },
-  queuedUP: { label: "complete", kind: "uploading" },
-  checkingUP: { label: "checking", kind: "uploading" },
-  stoppedUP: { label: "complete", kind: "uploading" },
-  pausedUP: { label: "complete", kind: "uploading" },
-  stoppedDL: { label: "stopped", kind: "stopped" },
-  pausedDL: { label: "paused", kind: "paused" },
-  error: { label: "error", kind: "error" },
-  missingFiles: { label: "missing", kind: "error" }
-};
 
 let cachedSettings = null;
 let renderedShortcuts = "";
 let loadingPromise = null;
+let categoriesLoaded = false;
 
 // The popup reloads every few seconds; only touch the DOM when the list changed.
 function renderShortcuts(settings) {
@@ -63,6 +45,25 @@ function renderShortcuts(settings) {
   );
 }
 
+/** Default first, then recently used, then the rest alphabetically. */
+function renderCategories(settings, categories) {
+  const ordered = [...new Set([settings.defaultCategory, ...settings.recentCategories, ...categories].filter(Boolean))];
+  const known = new Set(categories);
+  const current = categoriesLoaded ? categorySelect.value : settings.defaultCategory;
+  categorySelect.replaceChildren(
+    ...["", ...ordered.filter((category) => known.has(category) || category === settings.defaultCategory)].map((value) => {
+      const option = document.createElement("option");
+      option.value = value;
+      const name = value || "No category";
+      option.textContent = value === settings.defaultCategory ? `${name} · default` : name;
+      return option;
+    })
+  );
+  categorySelect.value = current;
+  if (categorySelect.value !== current) categorySelect.value = settings.defaultCategory;
+  categoriesLoaded = true;
+}
+
 function setConnectionStatus(text, kind) {
   statusText.textContent = text;
   statusDot.dataset.state = kind;
@@ -74,19 +75,10 @@ function setAddStatus(text = "", kind = "") {
   pasteInput.dataset.state = kind;
 }
 
-function formatRate(value = 0) {
-  let size = Number(value) || 0;
-  let unit = 0;
-  while (size >= 1024 && unit < UNITS.length - 1) {
-    size /= 1024;
-    unit += 1;
-  }
-  const fixed = size >= 100 || unit === 0 ? size.toFixed(0) : size.toFixed(1);
-  return `${fixed} ${UNITS[unit]}`;
-}
-
-function stateFor(torrent) {
-  return STATE_LABELS[torrent.state] ?? { label: torrent.state || "unknown", kind: "" };
+function setAddEnabled(enabled) {
+  pasteInput.disabled = !enabled;
+  categorySelect.disabled = !enabled;
+  addButton.disabled = !enabled;
 }
 
 function renderEmpty(message, kind = "") {
@@ -99,13 +91,17 @@ function renderEmpty(message, kind = "") {
 }
 
 function updateQueueSummary(torrents) {
-  const active = torrents.filter((torrent) => (torrent.progress ?? 0) < 0.999999 && torrent.state !== "pausedDL" && torrent.state !== "stoppedDL");
+  const active = torrents.filter(isActiveDownload);
   const totalRate = active.reduce((sum, torrent) => sum + (Number(torrent.dlspeed) || 0), 0);
   if (!active.length) {
     queueSummary.textContent = torrents.length ? "No active downloads" : "Empty";
     return;
   }
   queueSummary.textContent = `${active.length} active · ${formatRate(totalRate)}`;
+}
+
+function openWebUi() {
+  if (cachedSettings?.baseUrl) tabs?.create({ url: connectedBaseUrl(cachedSettings) });
 }
 
 function renderTorrents(torrents) {
@@ -118,30 +114,28 @@ function renderTorrents(torrents) {
   const fragment = document.createDocumentFragment();
   for (const torrent of torrents) {
     const item = document.createElement("li");
-    item.className = "torrent";
-    const progress = Math.max(0, Math.min(100, Math.round((torrent.progress ?? 0) * 100)));
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "torrent";
+    row.title = `${torrent.name || "Torrent"}\n${torrent.category || "No category"} · open in Web UI`;
+    row.addEventListener("click", openWebUi);
+    const progress = Math.max(0, Math.min(100, Math.floor((torrent.progress ?? 0) * 100)));
     const state = stateFor(torrent);
 
-    const top = document.createElement("div");
+    const top = document.createElement("span");
     top.className = "torrent-top";
     const name = document.createElement("span");
     name.className = "torrent-name";
     name.textContent = torrent.name || "Torrent";
-    name.title = torrent.name || "Torrent";
     const stateElement = document.createElement("span");
     stateElement.className = "torrent-state";
     stateElement.dataset.kind = state.kind;
     stateElement.textContent = state.label;
     top.append(name, stateElement);
 
-    const meta = document.createElement("div");
+    const meta = document.createElement("span");
     meta.className = "torrent-meta";
-    const values = [
-      torrent.category || "no category",
-      progress < 100 ? formatRate(torrent.dlspeed) : "complete",
-      `${progress}%`
-    ];
-    values.forEach((value, index) => {
+    torrentMeta(torrent).forEach((value, index) => {
       if (index > 0) {
         const separator = document.createElement("span");
         separator.className = "sep";
@@ -153,7 +147,7 @@ function renderTorrents(torrents) {
       meta.append(element);
     });
 
-    const bar = document.createElement("div");
+    const bar = document.createElement("span");
     bar.className = "bar";
     bar.setAttribute("role", "progressbar");
     bar.setAttribute("aria-label", `${torrent.name || "Torrent"} progress`);
@@ -166,7 +160,8 @@ function renderTorrents(torrents) {
     fill.style.width = `${progress}%`;
     bar.append(fill);
 
-    item.append(top, meta, bar);
+    row.append(top, meta, bar);
+    item.append(row);
     fragment.append(item);
   }
   torrentList.replaceChildren(fragment);
@@ -193,8 +188,7 @@ async function performLoad({ quiet = false } = {}) {
     setConnectionStatus("Not configured", "warn");
     queueSummary.textContent = "Offline";
     openQbit.disabled = true;
-    pasteInput.disabled = true;
-    addButton.disabled = true;
+    setAddEnabled(false);
     renderEmpty("Open settings and connect qBittorrent.");
     refresh.disabled = false;
     return;
@@ -202,20 +196,19 @@ async function performLoad({ quiet = false } = {}) {
 
   try {
     openQbit.disabled = false;
-    pasteInput.disabled = false;
-    addButton.disabled = false;
+    setAddEnabled(true);
     torrentList.setAttribute("aria-busy", "true");
     if (!quiet && !torrentList.children.length) renderEmpty("Loading queue…");
     const torrents = await getTorrents(settings, { limit: 8 });
     const url = new URL(connectedBaseUrl(settings));
     setConnectionStatus(`Connected · ${url.host}`, "ok");
     renderTorrents(torrents);
+    if (!categoriesLoaded) renderCategories(settings, await getCategories(settings).catch(() => []));
   } catch (error) {
     setConnectionStatus("Can't reach qBittorrent", "err");
     queueSummary.textContent = "Unavailable";
     openQbit.disabled = false;
-    pasteInput.disabled = true;
-    addButton.disabled = true;
+    setAddEnabled(false);
     if (!quiet || !torrentList.children.length) renderEmpty(error.message, "err");
   } finally {
     torrentList.setAttribute("aria-busy", "false");
@@ -240,21 +233,19 @@ addForm.addEventListener("submit", async (event) => {
     return;
   }
 
-  addButton.disabled = true;
-  pasteInput.disabled = true;
+  setAddEnabled(false);
   setAddStatus("Sending…", "sending");
   try {
-    const response = await sendMessage({ type: "ADD_MAGNET", magnetUrl });
+    const category = categorySelect.value;
+    const response = await sendMessage({ type: "ADD_MAGNET", magnetUrl, category });
     if (!response?.ok) throw new Error(response?.error || "Add failed.");
-    const category = cachedSettings?.defaultCategory;
     setAddStatus(category ? `Added to ${category}.` : "Added.", "sent");
     pasteInput.value = "";
     await loadPopup({ quiet: true });
   } catch (error) {
     setAddStatus(error.message, "error");
   } finally {
-    pasteInput.disabled = false;
-    addButton.disabled = false;
+    setAddEnabled(true);
   }
 });
 
@@ -262,9 +253,7 @@ pasteInput.addEventListener("input", () => {
   if (addStatus.textContent) setAddStatus();
 });
 
-openQbit.addEventListener("click", async () => {
-  if (cachedSettings?.baseUrl) await tabs?.create({ url: connectedBaseUrl(cachedSettings) });
-});
+openQbit.addEventListener("click", openWebUi);
 refresh.addEventListener("click", () => loadPopup());
 optionsBtn.addEventListener("click", () => runtime.openOptionsPage());
 document.addEventListener("visibilitychange", () => {
@@ -272,6 +261,8 @@ document.addEventListener("visibilitychange", () => {
 });
 
 loadPopup();
+// Opening the popup is a good moment to bring the toolbar badge up to date.
+sendMessage({ type: "REFRESH_BADGE" })?.catch?.(() => {});
 setInterval(() => {
   if (!document.hidden) loadPopup({ quiet: true });
 }, 5000);

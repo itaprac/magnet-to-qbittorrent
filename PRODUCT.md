@@ -34,4 +34,4 @@ Voice: declarative, short, no hand-holding. UI copy uses the same vocabulary the
 
 ## Accessibility & Inclusion
 
-WCAG 2.2 AA. Keyboard reachable end-to-end (popup included). Visible focus on every interactive element. Honors `prefers-reduced-motion`. Color is never the only carrier of meaning; state badges pair color with a label or icon. Minimum 4.5:1 contrast for body text. Touch targets ≥ 36px in the popup, ≥ 40px in the options page. Respects `prefers-color-scheme` via the same neutral palette, not a separate "light mode" design.
+WCAG 2.2 AA. Keyboard reachable end-to-end (popup included). Visible focus on every interactive element. Honors `prefers-reduced-motion`. Color is never the only carrier of meaning; state badges pair color with a label or icon. Minimum 4.5:1 contrast for body text. Touch targets ≥ 36px in the popup, ≥ 40px in the options page. Dark only, by design (see DESIGN.md): there is no light theme, and `color-scheme: dark` keeps native controls consistent.

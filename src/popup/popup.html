@@ -31,7 +31,7 @@
           <h2 id="addHeading">Quick add</h2>
           <span class="key-hint">Enter to send</span>
         </div>
-        <form id="addForm" class="command-row">
+        <form id="addForm" class="add-form">
           <input
             id="pasteInput"
             type="text"
@@ -39,9 +39,15 @@
             spellcheck="false"
             autocomplete="off"
             placeholder="Paste a magnet link"
+            aria-label="Magnet link"
             aria-describedby="addStatus"
           />
-          <button id="addButton" class="primary" type="submit">Add</button>
+          <div class="command-row">
+            <select id="categorySelect" aria-label="Category">
+              <option value="">No category</option>
+            </select>
+            <button id="addButton" class="primary" type="submit">Add</button>
+          </div>
         </form>
         <p id="addStatus" class="add-status" aria-live="polite"></p>
       </section>
