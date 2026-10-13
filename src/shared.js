@@ -9,6 +9,7 @@ export const DEFAULT_SETTINGS = {
   tags: "browser",
   showNotifications: true,
   notifyOnComplete: true,
+  showBadge: true,
   shortcuts: [],
   recentCategories: []
 };
@@ -51,6 +52,7 @@ export async function saveSettings(settings) {
   clean.addPaused = Boolean(clean.addPaused);
   clean.showNotifications = Boolean(clean.showNotifications);
   clean.notifyOnComplete = Boolean(clean.notifyOnComplete);
+  clean.showBadge = Boolean(clean.showBadge);
   clean.shortcuts = normalizeShortcuts(merged.shortcuts);
   clean.recentCategories = Array.isArray(merged.recentCategories)
     ? merged.recentCategories.filter(Boolean).slice(0, MAX_RECENT)

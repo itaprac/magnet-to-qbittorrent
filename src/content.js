@@ -2,8 +2,9 @@
 
 const PICKER_ID = "mtq-picker-root";
 const TOAST_ID = "mtq-toast";
-const STYLE_ID = "mtq-extension-styles";
 const MAX_QUICK_PICKS = 3;
+const TOAST_OK_MS = 1600;
+const TOAST_ERROR_MS = 6000;
 
 const runtime = (() => {
   try {
@@ -68,60 +69,67 @@ function pickQuickCategories({ recents, defaultCategory, categories }) {
   return out.slice(0, MAX_QUICK_PICKS);
 }
 
-function buildPickerMarkup({ name, quickCategories, allCategories, defaultCategory, hasMore, categoryLoadError }) {
+function buildPickerMarkup({ name, quickCategories, allCategories, defaultCategory, hasMore, categoryLoadError, addPaused }) {
   const chips = quickCategories
     .map(
       (cat, i) => `
-        <button class="mtq-chip" data-category="${escapeAttr(cat)}" data-index="${i + 1}" data-default="${cat === defaultCategory}" type="button">
-          <span class="mtq-chip-dot" aria-hidden="true"></span>
-          <span class="mtq-chip-label">${escapeHTML(cat) || "No category"}</span>
-          ${cat === defaultCategory ? '<span class="mtq-chip-tag">default</span>' : ""}
-          <kbd class="mtq-kbd">${i + 1}</kbd>
+        <button class="chip" data-category="${escapeHTML(cat)}" data-index="${i + 1}" data-default="${cat === defaultCategory}" type="button">
+          <span class="chip-dot" aria-hidden="true"></span>
+          <span class="chip-label">${escapeHTML(cat) || "No category"}</span>
+          ${cat === defaultCategory ? '<span class="chip-tag">default</span>' : ""}
+          <kbd>${i + 1}</kbd>
         </button>`
     )
     .join("");
 
   const allSelectOptions = allCategories
     .map(
-      (cat) => `<option value="${escapeAttr(cat)}"${cat === defaultCategory ? " selected" : ""}>${escapeHTML(cat) || "No category"}</option>`
+      (cat) => `<option value="${escapeHTML(cat)}"${cat === defaultCategory ? " selected" : ""}>${escapeHTML(cat) || "No category"}</option>`
     )
     .join("");
 
   return `
-    <div class="mtq-card" role="dialog" aria-modal="false" aria-labelledby="mtq-title">
-      <div class="mtq-head">
-        <svg class="mtq-mark" viewBox="0 0 24 24" aria-hidden="true">
-          <rect class="mtq-mark-bg" width="24" height="24" rx="6"/>
-          <path class="mtq-mark-bolt" d="M14 3 L7 13 h4.5 l-1.5 8 L17 11 h-4.5 L14 3 z"/>
+    <div class="card" role="dialog" aria-modal="false" aria-labelledby="title">
+      <div class="head">
+        <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+          <rect class="mark-bg" width="24" height="24" rx="6"/>
+          <path class="mark-bolt" d="M14 3 L7 13 h4.5 l-1.5 8 L17 11 h-4.5 L14 3 z"/>
         </svg>
-        <div class="mtq-head-text">
-          <p id="mtq-title" class="mtq-title">Add to qBittorrent</p>
-          <p class="mtq-name" title="${escapeAttr(name)}">${escapeHTML(name)}</p>
+        <div class="head-text">
+          <p id="title" class="title">Add to qBittorrent</p>
+          <p class="name" title="${escapeHTML(name)}">${escapeHTML(name)}</p>
         </div>
-        <button class="mtq-close" type="button" aria-label="Cancel">
+        <button class="close" type="button" aria-label="Cancel">
           <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 2 L12 12 M12 2 L2 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
         </button>
       </div>
-      ${categoryLoadError ? `<p class="mtq-warning">Couldn't load categories: ${escapeHTML(categoryLoadError)}</p>` : ""}
-      <p class="mtq-label">Add to</p>
-      <div class="mtq-chips" role="group" aria-label="Quick category picks">
+      ${categoryLoadError ? `<p class="warning">Couldn't load categories: ${escapeHTML(categoryLoadError)}</p>` : ""}
+      <p class="label">Add to</p>
+      <div class="chips" role="group" aria-label="Quick category picks">
         ${chips}
         ${
           hasMore
-            ? `<button class="mtq-chip mtq-chip-more" type="button" aria-expanded="false">
-                 <span class="mtq-chip-label">More…</span>
+            ? `<button class="chip chip-more" type="button" aria-expanded="false">
+                 <span class="chip-label">More…</span>
                </button>`
             : ""
         }
       </div>
-      <div class="mtq-more" hidden>
-        <label class="mtq-more-label">
+      <div class="more" hidden>
+        <label class="more-label">
           <span>Category</span>
-          <select class="mtq-select">${allSelectOptions}</select>
+          <select class="select">${allSelectOptions}</select>
         </label>
-        <button class="mtq-add" type="button">Add</button>
+        <button class="add" type="button">Add</button>
       </div>
-      <p class="mtq-foot">esc to cancel · ↵ to add</p>
+      <div class="foot">
+        <label class="paused">
+          <input class="paused-input" type="checkbox"${addPaused ? " checked" : ""} />
+          <span>Add paused</span>
+          <kbd>P</kbd>
+        </label>
+        <span class="hint">esc to cancel · ↵ to add</span>
+      </div>
     </div>
   `;
 }
@@ -134,336 +142,302 @@ function escapeHTML(value) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
-function escapeAttr(value) {
-  return escapeHTML(value);
-}
 
-function buildPickerCSS() {
-  return `
-    #${PICKER_ID}, #${TOAST_ID} {
-      --mtq-bg: var(--bg, oklch(13% 0.014 252));
-      --mtq-surface: var(--surface, oklch(17% 0.016 252));
-      --mtq-field: var(--field, oklch(20% 0.018 252));
-      --mtq-line: var(--line, oklch(30% 0.022 252));
-      --mtq-line-strong: var(--line-strong, oklch(42% 0.030 252));
-      --mtq-text: var(--text, oklch(95% 0.012 78));
-      --mtq-muted: var(--muted, oklch(70% 0.018 80));
-      --mtq-dim: var(--dim, oklch(55% 0.014 80));
-      --mtq-accent: var(--accent, oklch(78% 0.16 72));
-      --mtq-accent-strong: var(--accent-strong, oklch(85% 0.18 72));
-      --mtq-accent-ink: var(--accent-ink, oklch(18% 0.04 75));
-      --mtq-accent-soft: var(--accent-soft, oklch(78% 0.16 72 / .14));
-      --mtq-success: var(--success, oklch(78% 0.14 152));
-      --mtq-danger: var(--danger, oklch(70% 0.18 28));
-      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-      --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-      --r-pill: 8px;
-      --r-field: 10px;
-      --r-card: 14px;
-      --r-bar: 999px;
-      --ease-out: cubic-bezier(.22, 1, .36, 1);
-      --t-fast: 100ms;
+// The picker and toast live in a closed shadow root, so neither the page's
+// styles nor its custom properties (`--bg`, `--text`, …) can reach them. The
+// values mirror src/tokens.css.
+const SHADOW_CSS = `
+  :host {
+    all: initial;
+    --bg: oklch(13% 0.014 252);
+    --surface: oklch(17% 0.016 252);
+    --field: oklch(20% 0.018 252);
+    --line: oklch(30% 0.022 252);
+    --line-strong: oklch(42% 0.030 252);
+    --text: oklch(95% 0.012 78);
+    --muted: oklch(70% 0.018 80);
+    --dim: oklch(55% 0.014 80);
+    --accent: oklch(78% 0.16 72);
+    --accent-strong: oklch(85% 0.18 72);
+    --accent-ink: oklch(18% 0.04 75);
+    --accent-soft: oklch(78% 0.16 72 / .14);
+    --success: oklch(78% 0.14 152);
+    --danger: oklch(70% 0.18 28);
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", system-ui, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --r-pill: 8px;
+    --r-field: 10px;
+    --r-card: 14px;
+    --r-bar: 999px;
+    --ease-out: cubic-bezier(.22, 1, .36, 1);
+    --t-fast: 100ms;
 
-      box-sizing: border-box;
-      font: 13px/1.45 var(--font-sans);
-      color: var(--mtq-text);
-    }
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 2147483647;
+    color-scheme: dark;
+    color: var(--text);
+    font: 13px/1.45 var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  p { margin: 0; }
+  button, select, input { font: inherit; color: inherit; }
+  kbd {
+    display: inline-grid;
+    place-items: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    color: var(--muted);
+    font: 10px/1 var(--font-mono);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .card, .toast { animation: none !important; transition: none !important; }
+  }
+`;
 
-    #${PICKER_ID} {
-      position: fixed;
-      top: 16px;
-      right: 16px;
-      z-index: 2147483647;
-      width: min(380px, calc(100vw - 32px));
-      animation: mtq-in 180ms var(--ease-out, cubic-bezier(.22, 1, .36, 1));
-    }
-    @keyframes mtq-in {
-      from { opacity: 0; transform: translateY(-6px) scale(.98); }
-      to { opacity: 1; transform: translateY(0) scale(1); }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      #${PICKER_ID} { animation: none; }
-      #${TOAST_ID} { animation: none; transition: none !important; }
-    }
-    #${PICKER_ID} *, #${PICKER_ID} *::before, #${PICKER_ID} *::after { box-sizing: border-box; }
+const PICKER_CSS = `
+  :host { width: min(380px, calc(100vw - 32px)); }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-card);
+    box-shadow: 0 18px 60px oklch(6% 0.02 252 / .55), 0 1px 0 oklch(95% 0.01 78 / .04) inset;
+    padding: 14px 14px 12px;
+    animation: card-in 180ms var(--ease-out);
+  }
+  @keyframes card-in {
+    from { opacity: 0; transform: translateY(-6px) scale(.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
+  .mark { width: 22px; height: 22px; flex: 0 0 auto; margin-top: 1px; }
+  .mark-bg { fill: var(--accent); }
+  .mark-bolt { fill: var(--accent-ink); }
+  .head-text { min-width: 0; flex: 1 1 auto; }
+  .title, .label, .more-label span {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .name {
+    margin-top: 3px;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .close {
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: var(--r-pill);
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .close svg { width: 12px; height: 12px; }
+  .close:hover { background: var(--field); color: var(--text); }
+  .close:focus-visible, .chip:focus-visible, .add:focus-visible, .paused-input:focus-visible {
+    outline: 3px solid var(--accent-soft);
+    outline-offset: 2px;
+  }
 
-    .mtq-card {
-      background: var(--mtq-surface);
-      border: 1px solid var(--mtq-line);
-      border-radius: var(--r-card);
-      box-shadow: 0 18px 60px oklch(6% 0.02 252 / .55), 0 1px 0 oklch(95% 0.01 78 / .04) inset;
-      padding: 14px 14px 12px;
-    }
-    .mtq-head {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      margin-bottom: 12px;
-    }
-    .mtq-mark { width: 22px; height: 22px; flex: 0 0 auto; margin-top: 1px; }
-    .mtq-mark-bg { fill: var(--mtq-accent); }
-    .mtq-mark-bolt { fill: var(--mtq-accent-ink); }
-    .mtq-head-text { min-width: 0; flex: 1 1 auto; }
-    .mtq-title {
-      margin: 0;
-      font-size: 12px;
-      font-weight: 600;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      color: var(--mtq-muted);
-    }
-    .mtq-name {
-      margin: 3px 0 0;
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--mtq-text);
-      letter-spacing: -0.01em;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .mtq-close {
-      width: 24px;
-      height: 24px;
-      background: transparent;
-      border: 0;
-      border-radius: var(--r-pill);
-      color: var(--mtq-muted);
-      cursor: pointer;
-      padding: 0;
-      display: grid;
-      place-items: center;
-      flex: 0 0 auto;
-    }
-    .mtq-close svg { width: 12px; height: 12px; }
-    .mtq-close:hover { background: var(--mtq-field); color: var(--mtq-text); }
-    .mtq-close:focus-visible { outline: 3px solid var(--mtq-accent-soft); outline-offset: 2px; }
+  .warning {
+    margin-bottom: 10px;
+    padding: 8px 10px;
+    background: oklch(70% 0.18 28 / .12);
+    border: 1px solid oklch(70% 0.18 28 / .32);
+    border-radius: var(--r-field);
+    color: oklch(82% 0.14 28);
+    font-size: 12px;
+  }
+  .label { margin-bottom: 8px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 5px 8px;
+    background: var(--field);
+    border: 1px solid var(--line);
+    border-radius: var(--r-pill);
+    font-size: 12px;
+    font-weight: 550;
+    cursor: pointer;
+    transition: background var(--t-fast) var(--ease-out), border-color var(--t-fast) var(--ease-out);
+  }
+  .chip:hover { background: var(--accent-soft); border-color: var(--accent); }
+  .chip[data-default="true"] { border-color: var(--accent); background: var(--accent-soft); }
+  .chip-dot { width: 6px; height: 6px; border-radius: var(--r-bar); background: var(--accent); }
+  .chip-tag {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .chip-more { padding-inline: 10px; }
+  .chip-more .chip-label { color: var(--muted); }
 
-    .mtq-warning {
-      margin: 0 0 10px;
-      padding: 8px 10px;
-      background: oklch(70% 0.18 28 / .12);
-      border: 1px solid oklch(70% 0.18 28 / .32);
-      border-radius: var(--r-field);
-      color: oklch(82% 0.14 28);
-      font-size: 12px;
-    }
+  .more { display: flex; gap: 8px; align-items: end; margin-top: 10px; }
+  .more[hidden] { display: none; }
+  .more-label { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .select {
+    width: 100%;
+    min-height: 34px;
+    padding: 6px 28px 6px 10px;
+    background: var(--field) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' width='12' height='8'><path fill='none' stroke='%23B5B0A8' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' d='M1.5 1.5 6 6 10.5 1.5'/></svg>") no-repeat right 10px center;
+    border: 1px solid var(--line);
+    border-radius: var(--r-field);
+    font-size: 13px;
+    outline: none;
+    appearance: none;
+  }
+  .select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .add {
+    min-height: 34px;
+    padding: 0 14px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    border: 0;
+    border-radius: var(--r-field);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .add:hover { background: var(--accent-strong); }
 
-    .mtq-label {
-      margin: 0 0 8px;
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      color: var(--mtq-muted);
-    }
-    .mtq-chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
-    .mtq-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      min-height: 30px;
-      padding: 5px 10px 5px 8px;
-      background: var(--mtq-field);
-      border: 1px solid var(--mtq-line);
-      border-radius: var(--r-pill);
-      color: var(--mtq-text);
-      font: inherit;
-      font-size: 12px;
-      font-weight: 550;
-      cursor: pointer;
-      transition:
-        background var(--t-fast) var(--ease-out),
-        border-color var(--t-fast) var(--ease-out),
-        color var(--t-fast) var(--ease-out);
-    }
-    .mtq-chip:hover {
-      background: var(--mtq-accent-soft);
-      border-color: var(--mtq-accent);
-      color: var(--mtq-text);
-    }
-    .mtq-chip:focus-visible {
-      outline: 3px solid var(--mtq-accent-soft);
-      outline-offset: 2px;
-    }
-    .mtq-chip[data-default="true"] {
-      border-color: var(--mtq-accent);
-      background: var(--mtq-accent-soft);
-    }
-    .mtq-chip-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: var(--r-bar);
-      background: var(--mtq-accent);
-    }
-    .mtq-chip-tag {
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      color: var(--mtq-accent);
-      padding-left: 2px;
-    }
-    .mtq-kbd {
-      display: inline-grid;
-      place-items: center;
-      min-width: 16px;
-      height: 16px;
-      padding: 0 4px;
-      background: var(--mtq-bg);
-      border: 1px solid var(--mtq-line);
-      border-radius: 4px;
-      color: var(--mtq-muted);
-      font: 10px/1 var(--font-mono);
-      margin-left: 2px;
-    }
-    .mtq-chip-more .mtq-chip-label { color: var(--mtq-muted); }
+  .foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+  }
+  .paused {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 28px;
+    color: var(--muted);
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .paused:hover { color: var(--text); }
+  .paused-input { width: 14px; height: 14px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+  .hint { color: var(--dim); font: 11px/1.2 var(--font-mono); white-space: nowrap; }
+`;
 
-    .mtq-more {
-      display: flex;
-      gap: 8px;
-      align-items: end;
-      margin-top: 10px;
-    }
-    .mtq-more[hidden] { display: none; }
-    .mtq-more-label {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      min-width: 0;
-    }
-    .mtq-more-label span {
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      color: var(--mtq-muted);
-    }
-    .mtq-select {
-      width: 100%;
-      min-height: 34px;
-      padding: 6px 10px;
-      background: var(--mtq-field);
-      border: 1px solid var(--mtq-line);
-      border-radius: var(--r-field);
-      color: var(--mtq-text);
-      font: inherit;
-      font-size: 13px;
-      outline: none;
-      appearance: none;
-      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' width='12' height='8'><path fill='none' stroke='%23B5B0A8' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' d='M1.5 1.5 6 6 10.5 1.5'/></svg>");
-      background-repeat: no-repeat;
-      background-position: right 10px center;
-      padding-right: 28px;
-    }
-    .mtq-select:focus { border-color: var(--mtq-accent); box-shadow: 0 0 0 3px var(--mtq-accent-soft); }
+const TOAST_CSS = `
+  :host { max-width: min(420px, calc(100vw - 32px)); }
+  .toast {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    border-radius: var(--r-field);
+    box-shadow: 0 12px 40px oklch(6% 0.02 252 / .5);
+    font: 550 12px/1.4 var(--font-sans);
+    animation: toast-in 180ms var(--ease-out);
+    transition: opacity 160ms var(--ease-out);
+  }
+  .toast[data-kind="err"] { border-color: var(--danger); }
+  .toast[data-leaving] { opacity: 0; }
+  .icon { width: 14px; height: 14px; margin-top: 1px; color: var(--accent); flex: 0 0 auto; }
+  .toast[data-kind="err"] .icon { color: var(--danger); }
+  .message { min-width: 0; overflow-wrap: anywhere; }
+  .dismiss {
+    width: 22px;
+    height: 22px;
+    margin: -3px -4px -3px 2px;
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .dismiss svg { width: 10px; height: 10px; }
+  .dismiss:hover { background: var(--field); color: var(--text); }
+  .dismiss:focus-visible { outline: 3px solid var(--accent-soft); outline-offset: 1px; }
+  @keyframes toast-in {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+`;
 
-    .mtq-add {
-      min-height: 34px;
-      padding: 0 14px;
-      background: var(--mtq-accent);
-      color: var(--mtq-accent-ink);
-      border: 0;
-      border-radius: var(--r-field);
-      font: inherit;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background var(--t-fast) var(--ease-out);
-    }
-    .mtq-add:hover { background: var(--mtq-accent-strong); }
-    .mtq-add:focus-visible { outline: 3px solid var(--mtq-accent-soft); outline-offset: 2px; }
-
-    .mtq-foot {
-      margin: 10px 0 0;
-      font-size: 11px;
-      color: var(--mtq-dim);
-      font-family: var(--font-mono);
-    }
-
-    /* Toast */
-    #${TOAST_ID} {
-      position: fixed;
-      top: 16px;
-      right: 16px;
-      z-index: 2147483647;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 14px 10px 12px;
-      background: var(--mtq-surface);
-      border: 1px solid var(--mtq-accent);
-      border-radius: var(--r-pill);
-      color: var(--mtq-text);
-      font: 12px/1 var(--font-sans);
-      font-weight: 550;
-      box-shadow: 0 12px 40px oklch(6% 0.02 252 / .5);
-      animation: mtq-toast-in 180ms var(--ease-out);
-    }
-    #${TOAST_ID}[data-kind="err"] { border-color: var(--mtq-danger); }
-    #${TOAST_ID} svg { width: 14px; height: 14px; color: var(--mtq-accent); flex: 0 0 auto; }
-    #${TOAST_ID}[data-kind="err"] svg { color: var(--mtq-danger); }
-    @keyframes mtq-toast-in {
-      from { opacity: 0; transform: translateY(-6px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-  `;
-}
-
-function ensureStyles() {
-  if (document.getElementById(STYLE_ID)) return;
+function createShadowHost(id, css) {
+  document.getElementById(id)?.remove();
+  const host = document.createElement("div");
+  host.id = id;
+  const shadow = host.attachShadow({ mode: "closed" });
   const style = document.createElement("style");
-  style.id = STYLE_ID;
-  style.textContent = buildPickerCSS();
-  document.documentElement.append(style);
+  style.textContent = SHADOW_CSS + css;
+  shadow.append(style);
+  return { host, shadow };
 }
 
-function showPicker({ magnetUrl, categories, defaultCategory, recents, categoryLoadError }) {
+function showPicker({ magnetUrl, categories, defaultCategory, recents, categoryLoadError, addPaused }) {
   return new Promise((resolve) => {
-    document.getElementById(PICKER_ID)?.remove();
-    ensureStyles();
+    const { host, shadow } = createShadowHost(PICKER_ID, PICKER_CSS);
 
     const quickCategories = pickQuickCategories({ recents, defaultCategory, categories });
     const allCategories = Array.from(new Set(["", defaultCategory, ...(categories || []), ...(recents || [])].filter((value) => value !== undefined && value !== null)));
     const hasMore = allCategories.length > quickCategories.length;
 
-    const root = document.createElement("div");
-    root.id = PICKER_ID;
-
-    const card = document.createElement("div");
-    card.innerHTML = buildPickerMarkup({
+    const template = document.createElement("template");
+    template.innerHTML = buildPickerMarkup({
       name: magnetName(magnetUrl),
       quickCategories,
       allCategories,
       defaultCategory: defaultCategory || "",
       hasMore,
-      categoryLoadError
+      categoryLoadError,
+      addPaused
     });
-    root.append(card.firstElementChild);
+    shadow.append(template.content);
+    document.documentElement.append(host);
 
-    document.documentElement.append(root);
-
-    const moreEl = root.querySelector(".mtq-more");
-    const selectEl = root.querySelector(".mtq-select");
-    const moreBtn = root.querySelector(".mtq-chip-more");
-    const addBtn = root.querySelector(".mtq-add");
-    const closeBtn = root.querySelector(".mtq-close");
-    const firstChip = root.querySelector(".mtq-chip");
+    const root = shadow.querySelector(".card");
+    const moreEl = shadow.querySelector(".more");
+    const selectEl = shadow.querySelector(".select");
+    const moreBtn = shadow.querySelector(".chip-more");
+    const addBtn = shadow.querySelector(".add");
+    const closeBtn = shadow.querySelector(".close");
+    const pausedInput = shadow.querySelector(".paused-input");
+    const firstChip = shadow.querySelector(".chip");
     const previouslyFocused = document.activeElement;
 
-    if (firstChip) firstChip.focus();
+    firstChip?.focus();
 
-    const close = (value) => {
-      root.remove();
+    const close = (category) => {
+      host.remove();
       document.removeEventListener("keydown", onKeyDown, true);
       document.removeEventListener("mousedown", onDocMouseDown, true);
       previouslyFocused?.focus?.({ preventScroll: true });
-      resolve(value);
+      resolve(category === null ? null : { category, paused: pausedInput.checked });
     };
 
     function revealMore() {
@@ -475,6 +449,9 @@ function showPicker({ magnetUrl, categories, defaultCategory, recents, categoryL
     }
 
     function onKeyDown(event) {
+      // Events from inside a shadow root are retargeted to the host.
+      const target = event.composedPath()[0];
+      const insidePicker = event.composedPath().includes(host);
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
@@ -482,15 +459,16 @@ function showPicker({ magnetUrl, categories, defaultCategory, recents, categoryL
         return;
       }
       if (event.key === "Tab") {
-        const focusable = [...root.querySelectorAll("button:not([disabled]), select:not([disabled])")]
-          .filter((element) => !element.hidden && !element.closest("[hidden]"));
+        const focusable = [...root.querySelectorAll("button, select, input")]
+          .filter((element) => !element.disabled && !element.hidden && !element.closest("[hidden]"));
         if (!focusable.length) return;
         const first = focusable[0];
         const last = focusable[focusable.length - 1];
-        if (event.shiftKey && document.activeElement === first) {
+        const active = shadow.activeElement;
+        if (!active || (event.shiftKey && active === first)) {
           event.preventDefault();
-          last.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
+          (event.shiftKey ? last : first).focus();
+        } else if (!event.shiftKey && active === last) {
           event.preventDefault();
           first.focus();
         }
@@ -499,8 +477,8 @@ function showPicker({ magnetUrl, categories, defaultCategory, recents, categoryL
       if (event.key === "Enter" || event.key === "NumpadEnter") {
         event.preventDefault();
         event.stopPropagation();
-        const targetChip = event.target.closest?.(".mtq-chip");
-        if (targetChip?.classList.contains("mtq-chip-more")) {
+        const targetChip = insidePicker ? target.closest?.(".chip") : null;
+        if (targetChip?.classList.contains("chip-more")) {
           revealMore();
           return;
         }
@@ -508,20 +486,26 @@ function showPicker({ magnetUrl, categories, defaultCategory, recents, categoryL
           close(targetChip.dataset.category);
           return;
         }
-        if (event.target === closeBtn) {
+        if (target === closeBtn) {
           close(null);
           return;
         }
-        if (moreEl && !moreEl.hidden) {
-          close(selectEl.value);
-        } else {
-          close(quickCategories[0] ?? "");
+        if (target === pausedInput) {
+          pausedInput.checked = !pausedInput.checked;
+          return;
         }
+        close(moreEl && !moreEl.hidden ? selectEl.value : quickCategories[0] ?? "");
+        return;
+      }
+      if (target === selectEl) return;
+      if (event.key === "p" || event.key === "P") {
+        event.preventDefault();
+        event.stopPropagation();
+        pausedInput.checked = !pausedInput.checked;
         return;
       }
       if (/^[1-9]$/.test(event.key)) {
-        const idx = Number(event.key) - 1;
-        const chip = root.querySelector(`.mtq-chip[data-index="${event.key}"]`);
+        const chip = shadow.querySelector(`.chip[data-index="${event.key}"]`);
         if (chip) {
           event.preventDefault();
           event.stopPropagation();
@@ -531,21 +515,15 @@ function showPicker({ magnetUrl, categories, defaultCategory, recents, categoryL
     }
 
     function onDocMouseDown(event) {
-      if (!root.contains(event.target)) close(null);
+      if (!event.composedPath().includes(host)) close(null);
     }
 
     root.addEventListener("click", (event) => {
-      const chip = event.target.closest(".mtq-chip");
-      if (chip && !chip.classList.contains("mtq-chip-more")) {
-        event.preventDefault();
-        close(chip.dataset.category);
-        return;
-      }
-      if (chip && chip.classList.contains("mtq-chip-more")) {
-        event.preventDefault();
-        revealMore();
-        return;
-      }
+      const chip = event.target.closest(".chip");
+      if (!chip) return;
+      event.preventDefault();
+      if (chip.classList.contains("chip-more")) revealMore();
+      else close(chip.dataset.category);
     });
 
     addBtn?.addEventListener("click", (event) => {
@@ -563,23 +541,40 @@ function showPicker({ magnetUrl, categories, defaultCategory, recents, categoryL
   });
 }
 
+// Success fades out quickly; an error stays long enough to read, pauses while
+// hovered, and can be dismissed.
 function showToast(message, kind = "ok") {
-  ensureStyles();
-  document.getElementById(TOAST_ID)?.remove();
+  const { host, shadow } = createShadowHost(TOAST_ID, TOAST_CSS);
   const toast = document.createElement("div");
-  toast.id = TOAST_ID;
+  toast.className = "toast";
   toast.dataset.kind = kind;
   toast.setAttribute("role", kind === "err" ? "alert" : "status");
   const icon = kind === "err"
-    ? '<svg viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M7 4v3.5M7 9.5v.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>'
-    : '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 7.5 L6 10.5 L11 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  toast.innerHTML = `${icon}<span>${escapeHTML(message)}</span>`;
-  document.documentElement.append(toast);
-  setTimeout(() => {
-    toast.style.transition = "opacity 160ms var(--ease-out)";
-    toast.style.opacity = "0";
-    setTimeout(() => toast.remove(), 200);
-  }, 1500);
+    ? '<svg class="icon" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M7 4v3.5M7 9.5v.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>'
+    : '<svg class="icon" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 7.5 L6 10.5 L11 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const dismiss = kind === "err"
+    ? '<button class="dismiss" type="button" aria-label="Dismiss"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 2 L12 12 M12 2 L2 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>'
+    : "";
+  toast.innerHTML = `${icon}<span class="message">${escapeHTML(message)}</span>${dismiss}`;
+  shadow.append(toast);
+  document.documentElement.append(host);
+
+  let timer = null;
+  const leave = () => {
+    toast.dataset.leaving = "";
+    setTimeout(() => host.remove(), 200);
+  };
+  const schedule = () => {
+    clearTimeout(timer);
+    timer = setTimeout(leave, kind === "err" ? TOAST_ERROR_MS : TOAST_OK_MS);
+  };
+  toast.addEventListener("mouseenter", () => clearTimeout(timer));
+  toast.addEventListener("mouseleave", schedule);
+  shadow.querySelector(".dismiss")?.addEventListener("click", () => {
+    clearTimeout(timer);
+    leave();
+  });
+  schedule();
 }
 
 async function addMagnetWithPicker(magnetUrl) {
@@ -589,31 +584,24 @@ async function addMagnetWithPicker(magnetUrl) {
     return { ok: false, error: pickerData?.error };
   }
 
-  if (!pickerData.askCategoryOnAdd) {
-    const response = await sendMessage({ type: "ADD_MAGNET", magnetUrl });
-    if (response?.ok) {
-      const where = pickerData.defaultCategory ? ` → ${pickerData.defaultCategory}` : "";
-      showToast(`Added${where}`);
-    } else {
-      showToast(response?.error || "Add failed.", "err");
-    }
-    return response;
+  let message = { type: "ADD_MAGNET", magnetUrl };
+  if (pickerData.askCategoryOnAdd) {
+    const choice = await showPicker({
+      magnetUrl,
+      categories: pickerData.categories || [],
+      defaultCategory: pickerData.defaultCategory || "",
+      recents: pickerData.recents || [],
+      categoryLoadError: pickerData.categoryLoadError,
+      addPaused: Boolean(pickerData.addPaused)
+    });
+    if (choice === null) return { ok: true, cancelled: true };
+    message = { ...message, ...choice };
   }
 
-  const category = await showPicker({
-    magnetUrl,
-    categories: pickerData.categories || [],
-    defaultCategory: pickerData.defaultCategory || "",
-    recents: pickerData.recents || [],
-    categoryLoadError: pickerData.categoryLoadError
-  });
-
-  if (category === null) return { ok: true, cancelled: true };
-
-  const response = await sendMessage({ type: "ADD_MAGNET", magnetUrl, category });
+  const response = await sendMessage(message);
   if (response?.ok) {
-    const where = category ? ` → ${category}` : "";
-    showToast(`Added${where}`);
+    const where = response.category ? ` → ${response.category}` : "";
+    showToast(`Added${where}${message.paused ? " · paused" : ""}`);
   } else {
     showToast(response?.error || "Add failed.", "err");
   }
@@ -622,10 +610,25 @@ async function addMagnetWithPicker(magnetUrl) {
 
 // The context menu path runs entirely in the background script, so it asks this
 // tab for the confirmation toast instead of raising a system notification.
-runtime?.onMessage?.addListener((message) => {
-  if (message?.type !== "SHOW_TOAST" || !message.message) return;
-  showToast(String(message.message), message.kind === "err" ? "err" : "ok");
+// A click inside an iframe is handed to the top frame, which has room for the picker.
+runtime?.onMessage?.addListener((message, _sender, sendResponse) => {
+  if (message?.type === "SHOW_TOAST" && message.message) {
+    showToast(String(message.message), message.kind === "err" ? "err" : "ok");
+    sendResponse({ ok: true });
+  }
+  if (message?.type === "PICK_FROM_FRAME" && window === window.top && String(message.magnetUrl).startsWith("magnet:")) {
+    addMagnetWithPicker(message.magnetUrl);
+    sendResponse({ ok: true });
+  }
 });
+
+const isTopFrame = (() => {
+  try {
+    return window === window.top;
+  } catch {
+    return false;
+  }
+})();
 
 document.addEventListener(
   "click",
@@ -635,6 +638,10 @@ document.addEventListener(
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
+    if (!isTopFrame) {
+      const forwarded = await sendMessage({ type: "PICK_IN_TOP_FRAME", magnetUrl });
+      if (forwarded?.ok) return;
+    }
     await addMagnetWithPicker(magnetUrl);
   },
   true

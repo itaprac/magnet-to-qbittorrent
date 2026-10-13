@@ -84,7 +84,7 @@ test("add races reads, authenticates on fallback and sends only one add", async 
     if (url.endsWith("/torrents/add")) return new Response("Ok.");
     return new Response("2.11");
   });
-  assert.equal((await addMagnet(settings, "magnet:?xt=urn:btih:abc", "linux")).ok, true);
+  assert.equal((await addMagnet(settings, "magnet:?xt=urn:btih:abc", { category: "linux" })).ok, true);
   const adds = calls.filter(({ url }) => url.endsWith("/torrents/add"));
   assert.equal(adds.length, 1);
   assert.equal(adds[0].url, "http://192.168.1.20:8080/api/v2/torrents/add");
@@ -138,4 +138,83 @@ test("both hung addresses time out together after 5 seconds", async (t) => {
   const rejection = assert.rejects(result, /Neither address worked.*5 seconds/);
   t.mock.timers.tick(5000);
   await rejection;
+});
+
+test("reads hex and base32 info hashes from magnet links", async () => {
+  const { magnetInfoHash } = await import("../src/qbittorrent-api.js");
+  const hex = "c12fe1c06bba254a9dc9f519b335aa7c1367a88a";
+  assert.equal(magnetInfoHash(`magnet:?xt=urn:btih:${hex.toUpperCase()}&dn=x`), hex);
+  assert.equal(magnetInfoHash("magnet:?dn=x&xt=urn:btih:YEX6DQDLXISUVHOJ6UM3GNNKPQJWPKEK"), hex);
+  assert.equal(magnetInfoHash("magnet:?xt=urn:btmh:1220abc"), "");
+});
+
+const magnet = "magnet:?xt=urn:btih:c12fe1c06bba254a9dc9f519b335aa7c1367a88a&dn=Ubuntu";
+const single = { ...settings, fallbackUrl: "" };
+
+test("a magnet that is already in qBittorrent is not sent again", async (t) => {
+  const { addMagnet } = await import("../src/qbittorrent-api.js");
+  const calls = [];
+  t.mock.method(globalThis, "fetch", async (url) => {
+    calls.push(url);
+    if (url.includes("/torrents/info")) return new Response('[{"category":"linux"}]');
+    return new Response("2.11");
+  });
+  await assert.rejects(addMagnet(single, magnet), /Already in qBittorrent in linux\./);
+  assert.ok(calls.some((url) => url.includes("hashes=c12fe1c06bba254a9dc9f519b335aa7c1367a88a")));
+  assert.equal(calls.filter((url) => url.endsWith("/torrents/add")).length, 0);
+});
+
+test("qBittorrent's bare Fails. answer becomes a readable error", async (t) => {
+  const { addMagnet } = await import("../src/qbittorrent-api.js");
+  t.mock.method(globalThis, "fetch", async (url) => {
+    if (url.includes("/torrents/info")) return new Response("[]");
+    if (url.endsWith("/torrents/add")) return new Response("Fails.");
+    return new Response("2.11");
+  });
+  await assert.rejects(addMagnet(single, magnet), /already in the list or the link is invalid/);
+});
+
+test("add sends both the paused and stopped flags and honours a per-add override", async (t) => {
+  const { addMagnet } = await import("../src/qbittorrent-api.js");
+  let body;
+  t.mock.method(globalThis, "fetch", async (url, init) => {
+    if (url.endsWith("/torrents/add")) {
+      body = init.body;
+      return new Response("Ok.");
+    }
+    if (url.includes("/torrents/info")) return new Response("[]");
+    return new Response("2.11");
+  });
+  await addMagnet({ ...single, addPaused: false }, magnet, { paused: true, category: "" });
+  assert.equal(body.get("paused"), "true");
+  assert.equal(body.get("stopped"), "true");
+  assert.equal(body.get("category"), null);
+});
+
+test("login failures name the cause", async (t) => {
+  const { apiVersion } = await import("../src/qbittorrent-api.js");
+  let loginResponse;
+  t.mock.method(globalThis, "fetch", async (url) => url.endsWith("/auth/login")
+    ? loginResponse()
+    : new Response("Forbidden", { status: 403 }));
+  loginResponse = () => new Response("Fails.");
+  await assert.rejects(apiVersion(single), /Wrong username or password\./);
+  loginResponse = () => new Response("Banned", { status: 403 });
+  await assert.rejects(apiVersion(single), /banned this IP/);
+});
+
+test("a downloaded torrent file is uploaded instead of a URL", async (t) => {
+  const { addTorrent } = await import("../src/qbittorrent-api.js");
+  let body;
+  t.mock.method(globalThis, "fetch", async (url, init) => {
+    if (url.endsWith("/torrents/add")) {
+      body = init.body;
+      return new Response("Ok.");
+    }
+    return new Response("2.11");
+  });
+  const file = new Blob(["d8:announce0:e"], { type: "application/x-bittorrent" });
+  await addTorrent(single, { file, fileName: "ubuntu.torrent" });
+  assert.equal(body.get("torrents").name, "ubuntu.torrent");
+  assert.equal(body.get("urls"), null);
 });

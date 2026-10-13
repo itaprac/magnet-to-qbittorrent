@@ -30,11 +30,8 @@ button { -webkit-tap-highlight-color: transparent; }
 .brand-row,
 .brand,
 .status,
-.section-head,
 .inline-action,
-.form-actions,
-.torrent-top,
-.torrent-meta {
+.form-actions {
   display: flex;
   align-items: center;
 }
@@ -149,6 +146,7 @@ h2 {
 
 .category-row { grid-template-columns: minmax(0, 1fr) auto; }
 .align-bottom { align-self: end; }
+.category-hint { margin-top: -10px; }
 
 .field-label,
 .toggle-title {
@@ -392,91 +390,6 @@ input[type="checkbox"]:focus-visible {
 }
 
 .form-actions { padding-top: 4px; }
-
-.section-head {
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.torrent-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  margin: 0;
-  padding: 1px 0;
-  list-style: none;
-  background: var(--line);
-}
-
-.torrent {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 5px;
-  padding: 11px 12px 10px;
-  background: var(--bg);
-}
-
-.torrent-top {
-  min-width: 0;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.torrent-name {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 570;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.torrent-state {
-  flex: 0 0 auto;
-  color: var(--muted);
-  font: 600 10px/1 var(--font-mono);
-}
-.torrent-state[data-kind="downloading"] { color: var(--accent); }
-.torrent-state[data-kind="uploading"] { color: var(--success); }
-.torrent-state[data-kind="error"] { color: var(--danger); }
-.torrent-state[data-kind="paused"],
-.torrent-state[data-kind="stopped"] { color: var(--dim); }
-
-.torrent-meta {
-  gap: 8px;
-  color: var(--dim);
-  font: 10px/1.2 var(--font-mono);
-}
-.torrent-meta .sep { color: var(--line-strong); }
-
-.bar {
-  position: relative;
-  height: 3px;
-  margin-top: 2px;
-  overflow: hidden;
-  border-radius: var(--r-bar);
-  background: var(--field);
-}
-.bar > i {
-  position: absolute;
-  inset: 0 auto 0 0;
-  border-radius: inherit;
-  background: var(--accent);
-  transition: width 240ms var(--ease-out);
-}
-.bar[data-state="done"] > i { background: var(--success); }
-.bar[data-state="error"] > i { background: var(--danger); }
-
-.empty {
-  padding: 28px 16px;
-  background: var(--bg);
-  color: var(--muted);
-  font-size: 13px;
-  text-align: center;
-}
-.empty.err { color: var(--danger); }
 
 .troubleshooting {
   color: var(--muted);
